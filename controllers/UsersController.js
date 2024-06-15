@@ -1,4 +1,5 @@
-const bcrypt = require('bcrypt');
+import sha1 from 'sha1';
+
 const dbClient = require('../utils/db');
 
 class UsersController {
@@ -10,14 +11,13 @@ class UsersController {
     if (!password) {
       res.status(400).send('Missing password');
     }
-    const alreadyExist = await dbClient.collection('users').findOne({ email });
+    const alreadyExist = await dbClient.users.findOne({ email });
     if (alreadyExist) {
       res.status(400).send('Already exist');
     }
-    const salt = bcrypt.genSalt(10);
-    const hashed = bcrypt.hash(password, salt);
+    const hashed = sha1(password);
     const inserted = await dbClient.collection('users').insertOne({ email, hashed });
-    return res.status(200).json({ id: inserted.insertedId, email });
+    return res.status(201).json({ id: inserted.insertedId, email });
   }
 }
 module.exports = UsersController;
