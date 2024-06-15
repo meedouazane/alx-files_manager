@@ -15,8 +15,16 @@ class UsersController {
       res.status(400).send({ error: 'Already exist' });
     }
     const hashed = sha1(password);
-    const inserted = await dbClient.collection('users').insertOne({ email, hashed });
-    return res.status(201).json({ id: inserted.insertedId, email });
-  }
+    try {
+      const collection = dbClient.db.collection('users');
+      collection.insertOne({ email, password: hashed });
+      const User = await collection.findOne(
+          { email }, { projection: { email: 1 } }
+        );
+        response.status(201).json({ id: User._id, email: User.email });
+    } catch (error) {
+      console.log(error);
+      response.status(500).json({ error: 'Server error' });
+    }
 }
 module.exports = UsersController;
