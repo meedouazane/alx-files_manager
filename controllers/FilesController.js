@@ -4,15 +4,26 @@ import Queue from 'bull';
 import { ObjectId } from 'mongodb';
 import { v4 as uuidv4 } from 'uuid';
 import dbClient from '../utils/db';
-import { getIdAndKey, isValidUser } from './helper';
+import redisClient from '../utils/redis';
+
+async function getToken(request) {
+  const token = request.headers['x-token'];
+  return `auth_${token}`;
+}
+
+async function getId(request) {
+  const key = await getToken(request);
+  const userId = await redisClient.get(key);
+  return userId || null;
+}
 
 class FilesController {
   static async postUpload(request, response) {
     const fileQ = new Queue('fileQ');
     const dir = process.env.FOLDER_PATH || '/tmp/files_manager';
 
-    const { userId } = await getIdAndKey(request);
-    if (!isValidUser(userId)) {
+    const { userId } = await getId(request);
+    if (!userId) {
       return response.status(401).send({ error: 'Unauthorized' });
     }
     const user = await dbClient.users.findOne({ _id: ObjectId(userId) });
@@ -90,8 +101,8 @@ class FilesController {
   }
 
   static async getShow(request, response) {
-    const { userId } = await getIdAndKey(request);
-    if (!isValidUser(userId)) return response.status(401).send({ error: 'Unauthorized' });
+    const { userId } = await getId(request);
+    if (!userId) return response.status(401).send({ error: 'Unauthorized' });
 
     const user = await dbClient.users.findOne({ _id: ObjectId(userId) });
     if (!user) return response.status(401).send({ error: 'Unauthorized' });
@@ -111,8 +122,8 @@ class FilesController {
   }
 
   static async getIndex(request, response) {
-    const { userId } = await getIdAndKey(request);
-    if (!isValidUser(userId)) return response.status(401).send({ error: 'Unauthorized' });
+    const { userId } = await getId(request);
+    if (!(userId)) return response.status(401).send({ error: 'Unauthorized' });
 
     const user = await dbClient.users.findOne({ _id: ObjectId(userId) });
     if (!user) return response.status(401).send({ error: 'Unauthorized' });
@@ -120,7 +131,7 @@ class FilesController {
     let parentId = request.query.parentId || 0;
     if (parentId === '0') parentId = 0;
     if (parentId !== 0) {
-      if (!isValidUser(parentId)) return response.status(401).send({ error: 'Unauthorized' });
+      if (!parentId) return response.status(401).send({ error: 'Unauthorized' });
 
       parentId = ObjectId(parentId);
 
@@ -153,8 +164,8 @@ class FilesController {
   }
 
   static async putPublish(request, response) {
-    const { userId } = await getIdAndKey(request);
-    if (!isValidUser(userId)) return response.status(401).send({ error: 'Unauthorized' });
+    const { userId } = await getId(request);
+    if (!userId) return response.status(401).send({ error: 'Unauthorized' });
 
     const user = await dbClient.users.findOne({ _id: ObjectId(userId) });
     if (!user) return response.status(401).send({ error: 'Unauthorized' });
@@ -178,8 +189,8 @@ class FilesController {
   }
 
   static async putUnpublish(request, response) {
-    const { userId } = await getIdAndKey(request);
-    if (!isValidUser(userId)) return response.status(401).send({ error: 'Unauthorized' });
+    const { userId } = await getId(request);
+    if (!userId) return response.status(401).send({ error: 'Unauthorized' });
 
     const user = await dbClient.users.findOne({ _id: ObjectId(userId) });
     if (!user) return response.status(401).send({ error: 'Unauthorized' });
@@ -211,7 +222,7 @@ class FilesController {
 
     const { isPublic, userId, type } = file;
 
-    const { userId: user } = await getIdAndKey(request);
+    const { userId: user } = await getId(request);
 
     if ((!isPublic && !user) || (user && userId.toString() !== user && !isPublic)) return response.status(404).send({ error: 'Not found' });
     if (type === 'folder') return response.status(400).send({ error: 'A folder doesn\'t have content' });
